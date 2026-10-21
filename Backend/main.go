@@ -141,7 +141,7 @@ func main() {
 }
 
 func handleRouter(w http.ResponseWriter, r *http.Request) {
-	// setCors(w, r)
+
 	if r.Method == http.MethodOptions {
 		return
 	}
@@ -999,9 +999,3 @@ func (wm *SchwabWSManager) CancelCloseConnection() {
 		log.Println("Active SSE client reconnected. Debounce timer canceled.")
 	}
 }
-
-// func setCors(w http.ResponseWriter, r *http.Request) {
-// 	w.Header().Set("Access-Control-Allow-Origin", "*")
-// 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-// 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-// }

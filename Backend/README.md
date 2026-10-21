@@ -64,22 +64,25 @@ We recommend using [Caddy](https://github.com/caddyserver/caddy/releases) to run
 
 ### Create a Caddyfile file
 
-`Caddyfile`
+Create a `Caddyfile` and enter the following code. Make sure that `access-control-allow-origin` is set to a trusted domain.
 
 ```
 localhost:3333, 127.0.0.1:3333 {
+    tls internal
 
+    @options {
+        method OPTIONS
+    }
+    respond @options 204
+    
     header {
-        Access-Control-Allow-Origin "https://invmy.github.io"
-        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Upgrade, Connection"
-        Access-Control-Max-Age "86400"
+        >Access-Control-Allow-Origin "https://invmy.github.io"
+        >Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        >Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Access-Control-Request-Private-Network"
+        >Access-Control-Max-Age "3600"
+        >Access-Control-Allow-Private-Network "true"
     }
 
-    @options method OPTIONS
-    respond @options 204
-
-    tls internal
     reverse_proxy 127.0.0.1:2333
 }
 ```
