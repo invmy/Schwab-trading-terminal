@@ -6,7 +6,7 @@ This project is in no way affiliated with Schwab or TradingView, **nor is it an 
 
 I'm fed up with Schwab's official trading app, and it doesn't even integrate with TradingView. Their competitor, **Fidelity**, already supports TradingView. Maybe it's time we switch to Fidelity.
 
-Start from here [![Wiki](https://img.shields.io/badge/docs-Wiki-blue.svg)](https://github.com/invmy/Schwab-trading-terminal/wiki)
+Start from here [![Wiki](https://img.shields.io/badge/docs-Wiki-blue.svg)](https://github.com/invmy/Schwab-trading-terminal/discussions/categories/announcements)
 
 ## Features
 - [x] Candlestick Chart Data (`Stocks`, `Stock Options`, `Futures`)
