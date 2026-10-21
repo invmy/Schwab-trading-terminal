@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schwab-trading-terminal</title>
+    <script type="module">
+
+        function getOrPromptConfig(key, promptText) {
+            let value = localStorage.getItem(key);
+            while (!value) {
+                const input = prompt(promptText);
+
+                if (input === null) {
+                    break;
+                }
+
+                const trimmed = input.trim();
+                if (trimmed) {
+                    value = trimmed;
+                    localStorage.setItem(key, value);
+                } else {
+                    alert("need input");
+                }
+            }
+            return value;
+        }
+
+        let serverUrl = getOrPromptConfig('url', "No server!。eg:https://127.0.0.1:8888");
+        let userid = getOrPromptConfig('user', "No user id! Any character, excluding special symbols");
+        let lang = getOrPromptConfig('lang', "No lang! eg: en");
+
+        const eventSource = new EventSource(`${serverUrl}/stream`);
+        eventSource.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            const customEvent = new CustomEvent('sse-message', { detail: data });
+            window.dispatchEvent(customEvent);
+        };
+    </script>
+</head>
+
+<body style="margin: 0;">
+    <div id="tv_chart_container"></div>
+    <script type="module">
+        const tv_url = 'https://tv-save.pages.dev'
+        const SERVER = localStorage.getItem('url')
+        const USER = localStorage.getItem('user');
+
+        const { TradingAdapter } = await import('./Adapter.js')
+        const { widget } = await import(tv_url + '/charting_library/charting_library.esm.js');
+        const adapter = new TradingAdapter(SERVER);
+
+        let _theme = localStorage.getItem('theme') || localStorage.setItem('theme', 'dark');
+        let _lang = localStorage.getItem('lang') || 'en'
+        window.tv = new widget({
+
+            library_path: tv_url + '/charting_library/',
+            container: 'tv_chart_container',
+            locale: _lang,
+            theme: _theme,
+            symbol_search_request_delay: '1000',
+            debug: false,
+            debug_broker: false,
+            fullscreen: true,
+            autosize: true,
+            workers: true,
+
+            disabled_features: ["show_symbol_logos", "dom_widget", "chart_template_storage",],
+            enabled_features: ['header_saveload', 'study_templates', 'drawing_templates', 'saveload_separate_drawings_storage', 'move_logo_to_main_pane', "chart_style_hilo", "chart_style_hilo_last_price", "prefer_quote_short_name", "display_legend_on_all_charts", "display_data_mode", "hide_price_scale_global_last_bar_value", "pre_post_market_sessions", "show_average_close_price_line_and_label", "chart_drag_export", "pre_post_market_price_line", "legend_last_day_change", "no_min_chart_width", "low_density_bars", "show_buy_sell_buttons_on_unsupported_resolution"],
+
+
+            auto_save_delay: 30,
+            load_last_chart: true,
+            charts_storage_url: tv_url + "/storage",
+            charts_storage_api_version: '1.1',
+            client_id: "github",
+            user_id: String(USER),
+
+            datafeed: adapter,
+            widgetbar: { watchlist: true, datawindow: true, details: true, news: false },
+            broker_factory: (host) => adapter.broker(host),
+            broker_config: {
+                configFlags: {
+                    supportLevel2Data: false,
+                    supportOrdersHistory: false,
+                    supportReversePosition: false,
+                    supportMarketBrackets: false,
+                    supportOnlyPairPositionBrackets: true,
+                    supportPositionBrackets: true,
+                },
+            },
+        });
+        window.tv.headerReady().then(async () => {
+            window.watchlistApi = await window.tv.watchList();
+        });
+        window.tv.chartReady().then(() => {
+
+            window.tv.subscribe('activeChartChanged', (chartIndex) => {
+                const activeSymbol = window.tv.chart(chartIndex).symbol();
+                GET_OPTIONS(activeSymbol)
+            });
+
+            window.tv.activeChart().onSymbolChanged().subscribe(null, (symbolInfo) => {
+                GET_OPTIONS(symbolInfo.name)
+            });
+
+            window.tv.subscribe('onAutoSaveNeeded', () => {
+                setTimeout(async () => {
+                    await window.tv.saveChartToServer();
+                }, 0);
+            });
+
+            setTimeout(() => {
+                window.tv.createButton({
+                    align: 'right',
+                    useTradingViewStyle: true,
+                    text: 'Switch Theme',
+                    onClick: () => switch_theme()
+                });
+            }, 10000);
+
+        });
+
+        function switch_theme(params) {
+            let currentTheme = localStorage.getItem('theme') || 'dark';
+            let nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', nextTheme);
+            window.tv.changeTheme(nextTheme);
+        }
+
+        let currentDropdown = null;
+        const CACHE_options_date = new Map()
+        async function GET_OPTIONS(symbol) {
+
+            const isPureAlpha = /^[A-Za-z]+$/.test(symbol);
+
+            if (!isPureAlpha) {
+                currentDropdown?.remove();
+                currentDropdown = null;
+                return;
+            }
+
+            try {
+                let data;
+
+                if (CACHE_options_date.has(symbol)) {
+                    data = CACHE_options_date.get(symbol);
+                } else {
+                    const res = await fetch(`${SERVER}/marketdata/v1/expirationchain?symbol=${symbol}`);
+                    if (!res.ok) {
+                        throw new Error(`get options chain E: ${res.status}`);
+                    }
+                    data = await res.json();
+                    if (!data || !Array.isArray(data.expirationList) || data.expirationList.length === 0) {
+                        return;
+                    }
+                    CACHE_options_date.set(symbol, data);
+                }
+
+                const dates = data.expirationList.map(item => {
+                    const isWeekly = item.expirationType && item.expirationType.toUpperCase() === 'W';
+                    const typeLabel = isWeekly ? ` (${item.expirationType})` : '';
+                    return `${item.expirationDate} - Days ${item.daysToExpiration} ${typeLabel}`;
+                });
+
+                const params = {
+                    title: `${symbol} (OPTIONS)`,
+                    align: 'left',
+                    items: [
+                        ...dates.map(date => ({
+                            //
+                            title: date,
+                            onSelect: () => option_to_watchlist(date, symbol)
+                        })),
+                    ]
+                };
+                if (currentDropdown) {
+                    currentDropdown.applyOptions(params);
+                } else {
+                    currentDropdown = await window.tv.createDropdown(params);
+                }
+            } catch (error) {
+                console.error(`[${symbol}] options error:`, error);
+            }
+        }
+
+        async function option_to_watchlist(dateString, symbol) {
+            try {
+                const dateMatch = dateString.match(/\d{4}-\d{2}-\d{2}/);
+                if (!dateMatch) {
+                    return;
+                }
+                const targetDate = dateMatch[0];
+
+                const params = new URLSearchParams({
+                    symbol: symbol,
+                    contractType: 'ALL',
+                    strikeCount: '20',
+                    fromDate: targetDate,
+                    toDate: targetDate,
+                    includeUnderlyingQuote: 'false',
+                    strategy: 'SINGLE'
+                });
+
+                const res = await fetch(`${SERVER}/marketdata/v1/chains?${params.toString()}`);
+
+                if (!res.ok) {
+                    throw new Error(`option HTTP error: status ${res.status}`);
+                }
+
+                const data = await res.json();
+
+                const list = convertToTradingViewWatchlist(data)
+                const OPTION_LIST_ID = 'OPTION_WATCHLIST';
+                const OPTION_LIST_NAME = 'OPTIONS';
+                const rawLists = await window.watchlistApi.getAllLists();
+                const allLists = Array.isArray(rawLists) ? rawLists : [];
+                const existingList = allLists.find(item => (typeof item === 'string' ? item : item.id) === OPTION_LIST_ID);
+
+                if (existingList) {
+                    await window.watchlistApi.updateList(OPTION_LIST_ID, list);
+                } else {
+                    await window.watchlistApi.createList(OPTION_LIST_NAME, list, OPTION_LIST_ID);
+                }
+                await window.watchlistApi.setActiveList(OPTION_LIST_ID);
+            } catch (error) {
+                console.error(" option_to_watchlist error:", error);
+            }
+        }
+
+        const convertToTradingViewWatchlist = (apiData) => {
+            const extract = (expDateMap) =>
+                Object.values(expDateMap || {})
+                    .flatMap(Object.values)
+                    .flat()
+                    .map(opt => opt?.symbol?.trim())
+                    .filter(Boolean);
+
+            return [
+                "###CALL",
+                ...extract(apiData?.callExpDateMap),
+                "###PUT",
+                ...extract(apiData?.putExpDateMap)
+            ];
+        };
+    </script>
+</body>
+
+</html>
