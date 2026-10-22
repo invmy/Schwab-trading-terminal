@@ -227,8 +227,7 @@ export class TradingAdapter {
                     match: service => service === 'ACCT_ACTIVITY',
                     handle: (i) => {
                         const eventStatusMap = {
-                            // Placing (4)
-                            'OrderCreated': 4,
+                            // 'OrderCreated': 4,
 
                             // Working (6)
                             'OrderAccepted': 6,
@@ -237,12 +236,12 @@ export class TradingAdapter {
                             // 'ExecutionCreated': 6,
 
                             'ChangeAccepted': 6,
-                            'OrderMonitorUpdated': 6,
+                            // 'OrderMonitorUpdated': 6,
 
                             // Filled (2)
-                            'ExecutionRequestCompleted': 2,
+                            // 'ExecutionRequestCompleted': 2,
                             'OrderFillCompleted': 2,
-                            'OrderMonitorCompleted': 2,
+                            // 'OrderMonitorCompleted': 2,
 
                             // Canceled (1)
                             'CancelAccepted': 1,
@@ -275,11 +274,19 @@ export class TradingAdapter {
                             if (targetOrder) {
                                 targetOrder.status = targetStatus;
                                 targetOrder.updateTime = Date.now();
+                                let msg = findFirstKey(payload, 'NgOMSRuleDescription')
+                                if (msg) {
+                                    targetOrder.message = { type: 'Information', text: msg }
+                                }
                                 this.#HOST.orderUpdate(targetOrder);
+
                                 const existingIndex = this.#CACHE_orders.findIndex(o => o.id === targetOrder.id);
-                                this.#CACHE_orders[existingIndex] = targetOrder;
+                                if (existingIndex !== -1) {
+                                    this.#CACHE_orders[existingIndex] = targetOrder;
+                                }
+
                                 if (targetStatus === 2) {
-                                    this.#HOST.positionsFullUpdate()
+                                    this.#HOST.positionsFullUpdate();
                                 }
                             } else {
                                 console.warn(`Update Order status error: Can't find ID ${orderId}`);
@@ -1215,7 +1222,7 @@ export class TradingAdapter {
                 const newOrder = {
                     ...order,
                     id: String(newOrderId),
-                    status: 6
+                    status: 4
                 };
 
                 this.#CACHE_orders.push(newOrder);
