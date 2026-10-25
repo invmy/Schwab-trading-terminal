@@ -1488,3 +1488,24 @@ function isInRegularTradingHours() {
     const timeVal = hour * 100 + minute;
     return timeVal >= 930 && timeVal <= 1600;
 }
+
+
+function findFirstKey(obj, targetKey) {
+    if (obj === null || typeof obj !== 'object') {
+        return undefined;
+    }
+
+    for (let key of Object.keys(obj)) {
+        if (key === targetKey) {
+            return obj[key];
+        }
+        if (typeof obj[key] === 'object' && obj[key] !== null) {
+            let result = findFirstKey(obj[key], targetKey);
+            if (result !== undefined) {
+                return result;
+            }
+        }
+    }
+
+    return undefined;
+}
